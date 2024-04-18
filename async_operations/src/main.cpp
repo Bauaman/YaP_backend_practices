@@ -129,7 +129,42 @@ private:
     }
 
     void CheckReadiness(sys::error_code error) {
-        logger_.LogMessage(error.to_string());
+        if (delivered_) {
+            return;
+        }
+        if (error) {
+            return Deliver(error);
+        }
+        if (CanAddOnion()) {
+            logger_.LogMessage("Add onion"sv);
+            hamburger_.AddOnion();
+        }
+        if (IsReadyToPack()) {
+            Pack();
+        }
+    }
+
+    void Deliver(sys::error_code error) {
+        delivered_ = true;
+        handler_(error, id_, error ? nullptr : &hamburger_);
+    }
+
+    [[nodiscard]] bool CanAddOnion() const {
+        return hamburger_.IsCutletRoasted() && onion_marinaded_ && !hamburger_.HasOnion();
+    }
+
+    [[nodiscard]] bool IsReadyToPack() const {
+        return hamburger_.IsCutletRoasted() && (!with_onion_ || hamburger_.HasOnion());
+    }
+
+    void Pack() {  
+        logger_.LogMessage("Packing"sv);
+        auto start = steady_clock::now();
+        while(steady_clock::now() - start < 500ms) {
+        }
+        hamburger_.Pack();
+        logger_.LogMessage("Packed"sv);
+        Deliver({});
     }
 
     net::io_context& io_;
@@ -139,6 +174,7 @@ private:
     Logger logger_{std::to_string(id_)};
     Hamburger hamburger_;
     bool onion_marinaded_ = false;
+    bool delivered_ = false;
     boost::asio::steady_timer roast_timer_{io_, 1s};
     boost::asio::steady_timer marinade_timer_{io_, 2s};
 };
@@ -160,14 +196,29 @@ private:
 };
 
 std::ostream& operator<<(std::ostream& os, const Hamburger& h) {
-    return os << "Hamburger: "sv << (h.IsCutletRoasted() ? "roasted cutlet"sv : "raw cutlet"sv)
-              << (h.HasOnion() ? "onion ready"sv : "no onion"sv)
-              << (h.IsPacked() ? "packed"sv : "not packed"sv);
+    return os << "Hamburger: "sv << (h.IsCutletRoasted() ? "roasted cutlet, "sv : "raw cutlet, "sv)
+              << (h.HasOnion() ? "onion ready, "sv : "no onion, "sv)
+              << (h.IsPacked() ? "packed. "sv : "not packed. "sv);
 }
 
 int main() {
     net::io_context io;
-    Resturant restaurant(io);
-    restaurant.MakeHamburger(true,[](sys::error_code error, int order_id, Hamburger* h){});
+
+    Resturant restaurant{io};
+
+    Logger logger{"main"s};
+    auto print_result = [&logger](sys::error_code ec, int order_id, Hamburger* hamburger) {
+        std::ostringstream os;
+        if (ec) {
+            os << "Order "sv << order_id << "failed: "sv << ec.what();
+            return;
+        }
+        os << "Order "sv << order_id << " is ready. "sv << *hamburger;
+        logger.LogMessage(os.str());
+    };
+
+    for (int i = 0; i < 16; ++i) {
+        restaurant.MakeHamburger(i % 2 == 0, print_result);
+    }
     io.run();
 }
