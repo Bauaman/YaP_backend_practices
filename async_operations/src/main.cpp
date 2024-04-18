@@ -106,7 +106,14 @@ private:
     }
 
     void MarinadeOnion(){
+        logger_.LogMessage("Start marinading onions"sv);
+        marinade_timer_.async_wait([self = shared_from_this()](sys::error_code error) {
+            self->OnMarinaded(error);
+        });
+    }
 
+    void OnMarinaded(sys::error_code error) {
+        logger_.LogMessage("Ended marinading onions"sv);
     }
 
     net::io_context& io_;
@@ -115,6 +122,7 @@ private:
     OrderHandler handler_;
     Logger logger_{std::to_string(id_)};
     boost::asio::steady_timer roast_timer_{io_, 1s};
+    boost::asio::steady_timer marinade_timer_{io_, 2s};
 };
 
 class Resturant {
@@ -142,6 +150,6 @@ std::ostream& operator<<(std::ostream& os, const Hamburger& h) {
 int main() {
     net::io_context io;
     Resturant restaurant(io);
-    restaurant.MakeHamburger(false,[](sys::error_code error, int order_id, Hamburger* h){});
+    restaurant.MakeHamburger(true,[](sys::error_code error, int order_id, Hamburger* h){});
     io.run();
 }
