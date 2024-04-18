@@ -81,7 +81,7 @@ public:
     Order(net::io_context& io, int id, bool with_onion, OrderHandler handler) :
         io_{io},
         id_{id},
-        with_onion_{with_onion_},
+        with_onion_{with_onion},
         handler_{std::move(handler)} {
 
         }
