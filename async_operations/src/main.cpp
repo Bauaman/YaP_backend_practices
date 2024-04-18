@@ -102,7 +102,13 @@ private:
         });
     }
     void OnRoasted(sys::error_code error) {
-        logger_.LogMessage("Ended roasting cutlet"sv);
+        if (error) {
+            logger_.LogMessage("Roast error: "s + error.what());
+        } else {
+            hamburger_.SetCutletRoasted();
+            logger_.LogMessage("Ended roasting cutlet"sv);
+        }
+        CheckReadiness(error);
     }
 
     void MarinadeOnion(){
@@ -113,7 +119,17 @@ private:
     }
 
     void OnMarinaded(sys::error_code error) {
-        logger_.LogMessage("Ended marinading onions"sv);
+        if (error) {
+            logger_.LogMessage("Marinade error: "s + error.what());
+        } else {
+            onion_marinaded_ = true;
+            logger_.LogMessage("Ended marinading onions"sv);
+        }
+        CheckReadiness(error);
+    }
+
+    void CheckReadiness(sys::error_code error) {
+        logger_.LogMessage(error.to_string());
     }
 
     net::io_context& io_;
@@ -121,6 +137,8 @@ private:
     bool with_onion_;
     OrderHandler handler_;
     Logger logger_{std::to_string(id_)};
+    Hamburger hamburger_;
+    bool onion_marinaded_ = false;
     boost::asio::steady_timer roast_timer_{io_, 1s};
     boost::asio::steady_timer marinade_timer_{io_, 2s};
 };
