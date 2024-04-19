@@ -1,15 +1,36 @@
+#include <atomic>
 #include <boost/asio.hpp>
 #include <iostream>
 #include <chrono>
 #include <syncstream>
 #include <string>
 #include <string_view>
+#include <thread>
 
 using namespace std::literals;
 using namespace std::chrono;
 
 namespace net = boost::asio;
 namespace sys = boost::system;
+
+class ThreadChecker{
+public:
+    ThreadChecker(std::atomic_int& counter) :
+        counter_{counter} {
+
+    }
+
+    ThreadChecker(const ThreadChecker&) = delete;
+    ThreadChecker& operator=(const ThreadChecker&) = delete;
+
+    ~ThreadChecker() {
+        assert(expected_counter_ == counter_);
+    }
+
+private:
+    std::atomic_int& counter_;
+    int expected_counter_ = ++counter_;
+};
 
 class Logger {
 public:
@@ -97,11 +118,13 @@ private:
 
     void RoastCutlet(){
         logger_.LogMessage("Start roasting cutlet."sv);
-        roast_timer_.async_wait([self = shared_from_this()](sys::error_code error){
-            self->OnRoasted(error);
-        });
+        roast_timer_.async_wait(
+                    net::bind_executor(strand_,[self = shared_from_this()](sys::error_code error){
+                    self->OnRoasted(error);
+        }));
     }
     void OnRoasted(sys::error_code error) {
+        ThreadChecker checker{counter_};
         if (error) {
             logger_.LogMessage("Roast error: "s + error.what());
         } else {
@@ -113,12 +136,14 @@ private:
 
     void MarinadeOnion(){
         logger_.LogMessage("Start marinading onions"sv);
-        marinade_timer_.async_wait([self = shared_from_this()](sys::error_code error) {
-            self->OnMarinaded(error);
-        });
+        marinade_timer_.async_wait(
+                        net::bind_executor(strand_,[self = shared_from_this()](sys::error_code error) {
+                        self->OnMarinaded(error);
+        }));
     }
 
     void OnMarinaded(sys::error_code error) {
+        ThreadChecker checker{counter_};
         if (error) {
             logger_.LogMessage("Marinade error: "s + error.what());
         } else {
@@ -168,6 +193,7 @@ private:
     }
 
     net::io_context& io_;
+    net::strand<net::io_context::executor_type> strand_{net::make_strand(io_)};
     int id_;
     bool with_onion_;
     OrderHandler handler_;
@@ -177,6 +203,8 @@ private:
     bool delivered_ = false;
     boost::asio::steady_timer roast_timer_{io_, 1s};
     boost::asio::steady_timer marinade_timer_{io_, 2s};
+    std::atomic_int counter_ = 0;
+
 };
 
 class Resturant {
@@ -201,8 +229,20 @@ std::ostream& operator<<(std::ostream& os, const Hamburger& h) {
               << (h.IsPacked() ? "packed. "sv : "not packed. "sv);
 }
 
+template <typename Fn>
+void RunWorkers(unsigned n, const Fn& fn) {
+    n = std::max(1u, n);
+    std::vector<std::jthread> workers;
+    workers.reserve(n-1);
+    while (--n) {
+        workers.emplace_back(fn);
+    }
+    fn();
+}
+
 int main() {
-    net::io_context io;
+    const unsigned num_workers = 4;
+    net::io_context io(num_workers);
 
     Resturant restaurant{io};
 
@@ -220,5 +260,8 @@ int main() {
     for (int i = 0; i < 16; ++i) {
         restaurant.MakeHamburger(i % 2 == 0, print_result);
     }
-    io.run();
+    RunWorkers(num_workers, [&io] {
+        io.run();
+    });
+
 }
