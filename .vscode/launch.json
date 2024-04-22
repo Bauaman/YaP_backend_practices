@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": false,
-      "cwd": "/home/bauman/YaP_backend_practices/YaP_backend_practices/async_operations/src",
-      "program": "/home/bauman/YaP_backend_practices/YaP_backend_practices/async_operations/src/build/Debug/outDebug",
+      "cwd": "/home/bauman/YaP_backend_practices/YaP_backend_practices/caf_test/src",
+      "program": "/home/bauman/YaP_backend_practices/YaP_backend_practices/cafaf_test/src/build/Debug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [

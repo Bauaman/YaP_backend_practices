@@ -42,7 +42,8 @@
   ],
   "C_Cpp_Runner.includeSearch": [
     "*",
-    "**/*"
+    "**/*",
+    "/home/bauman/opt/boost/**"
   ],
   "C_Cpp_Runner.excludeSearch": [
     "**/build",
