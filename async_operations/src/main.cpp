@@ -207,9 +207,9 @@ private:
 
 };
 
-class Resturant {
+class Restaurant {
 public:
-    explicit Resturant(net::io_context& io) :
+    explicit Restaurant(net::io_context& io) :
         io_(io) {
     }
 
@@ -244,24 +244,43 @@ int main() {
     const unsigned num_workers = 4;
     net::io_context io(num_workers);
 
-    Resturant restaurant{io};
+    Restaurant restaurant{io};
 
     Logger logger{"main"s};
-    auto print_result = [&logger](sys::error_code ec, int order_id, Hamburger* hamburger) {
-        std::ostringstream os;
-        if (ec) {
-            os << "Order "sv << order_id << "failed: "sv << ec.what();
-            return;
-        }
-        os << "Order "sv << order_id << " is ready. "sv << *hamburger;
-        logger.LogMessage(os.str());
+
+    struct OrderResult {
+        sys::error_code ec;
+        Hamburger hamburger;
     };
 
-    for (int i = 0; i < 16; ++i) {
-        restaurant.MakeHamburger(i % 2 == 0, print_result);
+    std::unordered_map<int, OrderResult> orders;
+
+    // Обработчик заказа может быть вызван в любом из потоков, вызывающих io.run().
+    // Чтобы избежать состояния гонки при обращении к orders, выполняем обращения к orders через
+    // strand, используя функцию dispatch.
+    auto handle_result
+        = [strand = net::make_strand(io), &orders](sys::error_code ec, int id, Hamburger* h) {
+              net::dispatch(strand, [&orders, id, res = OrderResult{ec, ec ? Hamburger{} : *h}] {
+                  orders.emplace(id, res);
+              });
+          };
+
+    const int num_orders = 16;
+    for (int i = 0; i < num_orders; ++i) {
+        restaurant.MakeHamburger(i % 2 == 0, handle_result);
     }
+
+    assert(orders.empty());
     RunWorkers(num_workers, [&io] {
         io.run();
     });
+    assert(orders.size() == num_orders);
+
+    for (const auto& [id, order] : orders) {
+        assert(!order.ec);
+        assert(order.hamburger.IsCutletRoasted());
+        assert(order.hamburger.IsPacked());
+        assert(order.hamburger.HasOnion() == (id % 2 != 0));
+    }
 
 }
