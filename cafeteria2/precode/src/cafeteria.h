@@ -126,8 +126,14 @@ public:
     }
 
     void OrderHotDog(int id, HotDogHandler handler) {
-            std::shared_ptr<Sausage> s = store_.GetSausage();
-            std::shared_ptr<Bread> b = store_.GetBread();
+            std::shared_ptr<Sausage> s;
+            std::shared_ptr<Bread> b;
+            {
+                std::lock_guard<std::mutex> lock(store_mutex_);
+                s = store_.GetSausage();
+                b = store_.GetBread();
+            }
+            
             std::shared_ptr<Order> order = std::make_shared<Order>(id, io_, s, b, std::move(handler));
             order->Execute(gas_cooker_);/*
             if (order->IsReadyToPack()) {
@@ -142,4 +148,5 @@ private:
     net::io_context& io_;
     Store store_;
     std::shared_ptr<GasCooker> gas_cooker_ = std::make_shared<GasCooker>(io_);
+    std::mutex store_mutex_;
 };
