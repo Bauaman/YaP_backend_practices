@@ -131,5 +131,6 @@
     "typeindex": "cpp",
     "typeinfo": "cpp",
     "variant": "cpp"
-  }
+  },
+  "cmake.sourceDirectory": "/home/bauman/YaP_backend_practices/YaP_backend_practices/boost_json"
 }
